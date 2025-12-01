@@ -40,7 +40,7 @@ jobs:
     - name: Upload entire dist folder
       uses: actions/upload-artifact@v4
       with:
-        name: ReVerse-Windows-Complete
+        name: ReVerse-Windows-${{ github.sha }}
         path: dist/ReVerse/
         retention-days: 30
     
@@ -51,7 +51,7 @@ jobs:
     - name: Upload ZIP
       uses: actions/upload-artifact@v4
       with:
-        name: ReVerse-Windows-ZIP
+        name: ReVerse-Windows-ZIP-${{ github.sha }}
         path: ReVerse-Windows.zip
         retention-days: 30
     
