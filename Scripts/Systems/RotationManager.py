@@ -3,6 +3,7 @@ ReVerse - Rotation Manager
 Dünya döndürme sistemi (90° rotasyon)
 """
 import pygame
+from Scripts.Utils.Path import asset_path
 from Scripts.Utils.Constants import *
 
 class RotationManager:
@@ -59,9 +60,8 @@ class RotationManager:
         
         # Sprite'ı yeni yöne göre döndür
         try:
-            base_sprite = pygame.image.load("Assets/Sprites/Ok.png")
+            base_sprite = pygame.image.load(asset_path("Assets/Sprites/Ok.png"))
             base_sprite = pygame.transform.smoothscale(base_sprite, (grid_size, grid_size))
-            
             if triangle.direction == DIR_RIGHT:
                 triangle.sprite = base_sprite
             elif triangle.direction == DIR_LEFT:
@@ -70,7 +70,7 @@ class RotationManager:
                 triangle.sprite = pygame.transform.rotate(base_sprite, 90)
             elif triangle.direction == DIR_DOWN:
                 triangle.sprite = pygame.transform.rotate(base_sprite, -90)
-        except:
+        except Exception:
             pass
     
     def reset(self):

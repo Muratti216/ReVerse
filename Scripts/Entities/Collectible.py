@@ -6,6 +6,7 @@ import pygame
 import math
 from config import *
 from Scripts.Utils.Constants import *
+from Scripts.Utils.Path import asset_path
 
 # ============================================
 # BASE COLLECTIBLE CLASS
@@ -87,7 +88,7 @@ class Star(Collectible):
         
         # Sprite yükle
         try:
-            self.sprite = pygame.image.load("Assets/Sprites/Yildiz.png")
+            self.sprite = pygame.image.load(asset_path("Assets/Sprites/Yildiz.png"))
             self.sprite = pygame.transform.scale(self.sprite, (size, size))
         except:
             self.sprite = None
@@ -142,7 +143,7 @@ class Key(Collectible):
         
         # Sprite yükle
         try:
-            self.sprite = pygame.image.load("Assets/Sprites/Key.png")
+            self.sprite = pygame.image.load(asset_path("Assets/Sprites/Key.png"))
             self.sprite = pygame.transform.scale(self.sprite, (size, size))
         except:
             self.sprite = None
@@ -195,8 +196,8 @@ class Door(Collectible):
         # Sprite yükle (kapalı ve açık kapı)
         try:
             # Orijinal görseli yükle ve aspect ratio'yu koru
-            closed_img = pygame.image.load("Assets/Sprites/Kapi.png")
-            open_img = pygame.image.load("Assets/Sprites/AcikKapi.png")
+            closed_img = pygame.image.load(asset_path("Assets/Sprites/Kapi.png"))
+            open_img = pygame.image.load(asset_path("Assets/Sprites/AcikKapi.png"))
             
             # Smooth scale ile kaliteyi koru
             self.sprite_closed = pygame.transform.smoothscale(closed_img, (size, size))
@@ -295,7 +296,7 @@ class RotateSymbol:
 
         # Tek görsel (BombeliOk.png) yükle
         try:
-            base_sprite = pygame.image.load("Assets/Sprites/BombeliOk.png").convert_alpha()
+            base_sprite = pygame.image.load(asset_path("Assets/Sprites/BombeliOk.png")).convert_alpha()
             # Tek, ortalanmış görsel (kare içinde %60 boyut)
             target_w = int(self.size * 0.6)
             target_h = int(self.size * 0.6)

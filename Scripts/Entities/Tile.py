@@ -5,6 +5,7 @@ Grid objeleri (Unity GameObject/Prefab benzeri)
 import pygame
 import config
 from config import *
+from Scripts.Utils.Path import asset_path
 from Scripts.Utils.Constants import *
 
 # ============================================
@@ -82,7 +83,7 @@ class DamageTile(Tile):
         
         # Sprite yükle
         try:
-            self.sprite = pygame.image.load("Assets/Sprites/Engel.png")
+            self.sprite = pygame.image.load(asset_path("Assets/Sprites/Engel.png"))
             self.sprite = pygame.transform.scale(self.sprite, (size, size))
         except:
             self.sprite = None
@@ -128,7 +129,7 @@ class PushTriangle(Tile):
         
         # Sprite yükle ve yöne göre döndür (BombeliOk.png artık Ok.png için ayrıldı)
         try:
-            base_sprite = pygame.image.load("Assets/Sprites/Ok.png").convert_alpha()
+            base_sprite = pygame.image.load(asset_path("Assets/Sprites/Ok.png")).convert_alpha()
             base_sprite = pygame.transform.smoothscale(base_sprite, (size, size))
             
             # Yöne göre döndür

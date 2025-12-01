@@ -3,6 +3,7 @@ ReVerse - Player
 Yeşil amorf taş karakter - Grid tabanlı turn-based hareket
 """
 import pygame
+from Scripts.Utils.Path import asset_path
 from config import *
 from Scripts.Systems.ResourceManager import ResourceManager
 from Scripts.Utils.Constants import *
@@ -22,7 +23,7 @@ class Player:
         
         # Sprite yükle
         try:
-            self.sprite = pygame.image.load("Assets/Sprites/Avatar.png")
+            self.sprite = pygame.image.load(asset_path("Assets/Sprites/Avatar.png"))
             self.sprite = pygame.transform.scale(self.sprite, (size, size))
         except:
             self.sprite = None
@@ -31,7 +32,7 @@ class Player:
         # Kalp sprite yükle (UI için)
         try:
             heart_size = int(32 * SCALE)  # Kalp boyutu
-            self.heart_sprite = pygame.image.load("Assets/Sprites/Kalp.png")
+            self.heart_sprite = pygame.image.load(asset_path("Assets/Sprites/Kalp.png"))
             self.heart_sprite = pygame.transform.smoothscale(self.heart_sprite, (heart_size, heart_size))
         except:
             self.heart_sprite = None
