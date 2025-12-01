@@ -16,6 +16,16 @@ import os
 # Proje kök dizinini Python path'e ekle
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Çalışma dizinini exe'nin bulunduğu klasöre ayarla (PyInstaller uyumu)
+try:
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(base_dir)
+except Exception:
+    pass
+
 from config import *
 from Scenes.SplashScene import SplashScene, CompanySplash
 from Scripts.Core.GameManager import GameManager
