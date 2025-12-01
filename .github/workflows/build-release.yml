@@ -27,39 +27,32 @@ jobs:
     
     - name: Build with PyInstaller
       run: |
-        python -m PyInstaller --name ReVerse --icon "Assets/Sprites/Avatar.ico" --add-data "Assets;Assets" --add-data "Levels;Levels" --add-data "Scenes;Scenes" --add-data "Scripts;Scripts" --add-data "config.py;." --add-data "README.md;." --noconfirm --onedir --clean --distpath "Build" main.py
+        python -m PyInstaller --name ReVerse --icon "Assets/Sprites/Avatar.ico" --add-data "Assets;Assets" --add-data "Levels;Levels" --add-data "Scenes;Scenes" --add-data "Scripts;Scripts" --add-data "config.py;." --add-data "README.md;." --noconfirm --onedir --distpath "dist" main.py
+      continue-on-error: false
     
-    - name: Verify build output
+    - name: List all build outputs
       run: |
-        dir Build
-        if (Test-Path "build/ReVerse/ReVerse.exe") { 
-          Write-Host "✓ EXE found in build/ReVerse"
-          Copy-Item "build/ReVerse/ReVerse.exe" "Build/ReVerse/" -Force
-        }
-        dir Build/ReVerse
+        Write-Host "=== Contents of dist ==="
+        Get-ChildItem -Path dist -Recurse | Select-Object FullName
+        Write-Host "=== Contents of build ==="
+        Get-ChildItem -Path build -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
     
-    - name: Create ZIP for release
+    - name: Upload entire dist folder
+      uses: actions/upload-artifact@v4
+      with:
+        name: ReVerse-Windows-Complete
+        path: dist/ReVerse/
+        retention-days: 30
+    
+    - name: Create ZIP from dist
       run: |
-        if (Test-Path "Build/ReVerse") {
-          Compress-Archive -Path "Build/ReVerse/*" -DestinationPath "ReVerse-Windows.zip"
-        } else {
-          Write-Error "Build/ReVerse folder not found!"
-          exit 1
-        }
+        Compress-Archive -Path "dist/ReVerse/*" -DestinationPath "ReVerse-Windows.zip" -Force
     
-    - name: Upload ZIP artifact
+    - name: Upload ZIP
       uses: actions/upload-artifact@v4
       with:
         name: ReVerse-Windows-ZIP
         path: ReVerse-Windows.zip
-        retention-days: 30
-    
-    - name: Archive full build folder
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: ReVerse-Windows-Build
-        path: Build/ReVerse/
         retention-days: 30
     
     - name: Upload ZIP artifact
