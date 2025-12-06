@@ -4,6 +4,7 @@ Ana oyun döngüsü ve state yönetimi (Unity GameManager benzeri)
 """
 import pygame
 import sys
+import config
 from config import *
 from Scripts.Utils.Constants import *
 from Levels.LevelData import LevelData
@@ -21,12 +22,15 @@ class GameManager:
         pygame.init()
         
         # Ekran ayarları (RESIZABLE)
+        # VSYNC için pygame.SCALED yerine clock.tick() kullanılacak (daha uyumlu)
+        display_flags = pygame.RESIZABLE
+        
         if FULLSCREEN:
             # Borderless fullscreen (monitör boyutunda pencere)
             info = pygame.display.Info()
-            self.screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.NOFRAME | pygame.RESIZABLE)
+            self.screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.NOFRAME | display_flags)
         else:
-            self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
+            self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), display_flags)
         
         pygame.display.set_caption("ReVerse | Puzzle Platformer")
         self.is_maximized = False
@@ -80,13 +84,16 @@ class GameManager:
         global FULLSCREEN
         FULLSCREEN = not FULLSCREEN
         
+        # Display flags (VSYNC via clock.tick)
+        display_flags = pygame.RESIZABLE
+        
         if FULLSCREEN:
             # Borderless fullscreen (monitör boyutunda pencere)
             info = pygame.display.Info()
-            self.screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.NOFRAME | pygame.RESIZABLE)
+            self.screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.NOFRAME | display_flags)
             print("🖥️ Borderless Fullscreen ON (F11 or ESC to exit)")
         else:
-            self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
+            self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), display_flags)
             print("🖥️ Windowed mode (F11 for fullscreen)")
         # Tam ekran değişiminde maximize bayrağını sıfırla
         self.is_maximized = False
