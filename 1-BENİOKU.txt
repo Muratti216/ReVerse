@@ -1,0 +1,9 @@
+Merhaba Öğretmenim,
+
+ Oyunu başarı ile Python'dan yaptım 
+fakat eğer isterseniz oyunu ilerleyen 
+günlerde güncellemeye devam edeceğim 
+aşağıdaki GitHub linkinden takip edebilirsiniz;
+
+
+https://github.com/Muratti216/ReVerse

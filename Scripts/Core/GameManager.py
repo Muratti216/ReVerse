@@ -67,7 +67,7 @@ class GameManager:
         # Debug overlay
         self.debug_enabled = False
         # Help overlay (TAB to toggle)
-        self.help_enabled = False
+        self.help_enabled = True
         # Rotation Manager
         self.rotation_manager = RotationManager()
         # Rotate tetikleme cooldown (seviye geçişinde çifte tetiklemeyi önler)
