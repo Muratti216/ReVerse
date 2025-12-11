@@ -5,7 +5,7 @@ Grid tabanlı, iki level arasında dönen, health/jump hakları ortak tutulan k�
 ## Nasıl oynanır
 
 - Health-jump havuzu ortaktır: 3 ana health × her can için 3 jump hakkı. Jump modundayken her hamlede hak düşer; hak 0 olursa 1 health gider ve haklar tazelenir.
-- Tüm engeller 1 health düşürür (siyah blok, itici ok inişi). health kalırsa jump hakların yenilenir; health 0 ise Game Over.
+- Tüm engeller 1 health düşürür (siyah blok). health kalırsa jump hakların yenilenir; health 0 ise Game Over.
 - Yıldızları topla → anahtar spawn olur (Level 1’de anahtar görünmez, Level 2’de çıkar). Kapı sadece yeterli yıldız + anahtar ile açılır.
 - Timer üstte: Best / Now. Sağda durum: Stars, Key, hedef (collect / get key / exit).
 - Level 1 ve 2 arasında geçişte health ve jump hakları korunur.
