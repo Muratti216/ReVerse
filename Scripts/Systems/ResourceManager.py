@@ -14,6 +14,24 @@ class ResourceManager:
         self.main_lives = config.MAX_MAIN_LIVES      # 3 ana can
         self.jump_tokens = config.JUMPS_PER_LIFE     # 3 zıplama hakkı
         self.total_jumps_used = 0             # Toplam kullanılan zıplama
+
+    def take_hit(self, reason="Obstacle"):
+        """Her engel temasında 1 can götür; can kalırsa jump tokenları yenile."""
+        if config.GOD_MODE:
+            print(f"🛡️ GOD MODE: Hit ignored ({reason})")
+            return True
+
+        self.main_lives -= 1
+        print(f"💔 Hit: -1 life (reason: {reason}) → Lives: {self.main_lives}")
+
+        if self.main_lives > 0:
+            # Her can kaybında zıplama haklarını tazele
+            self.jump_tokens = config.JUMPS_PER_LIFE
+            print(f"🔄 Jump tokens refilled: {self.jump_tokens}")
+            return True
+        else:
+            print("☠️ GAME OVER - No lives left!")
+            return False
         
     def use_jump(self):
         """

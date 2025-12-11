@@ -85,9 +85,9 @@ class DamageTile(Tile):
         try:
             self.sprite = pygame.image.load(asset_path("Assets/Sprites/Engel.png"))
             self.sprite = pygame.transform.scale(self.sprite, (size, size))
-        except:
+        except (FileNotFoundError, pygame.error) as e:
             self.sprite = None
-            print("⚠️ Engel.png yüklenemedi")
+            print(f"⚠️ Engel.png yüklenemedi: {e}")
         
     def draw(self, screen, camera_offset=(0, 0)):
         draw_x = self.rect.x - camera_offset[0]
@@ -106,11 +106,8 @@ class DamageTile(Tile):
     
     def on_player_land(self, player):
         """Can götür!"""
-        if config.GOD_MODE:
-            print("🛡️ GOD MODE: Damage ignored")
-            return
-        can_continue = player.resource_manager.use_jump()
-        if not can_continue:
+        alive = player.resource_manager.take_hit("Damage tile")
+        if not alive:
             print("💀 Player died on damage tile!")
 
 
@@ -141,9 +138,9 @@ class PushTriangle(Tile):
                 self.sprite = pygame.transform.rotate(base_sprite, 90)
             elif direction == DIR_DOWN:
                 self.sprite = pygame.transform.rotate(base_sprite, -90)
-        except:
+        except (FileNotFoundError, pygame.error) as e:
             self.sprite = None
-            print("⚠️ Ok.png yüklenemedi")
+            print(f"⚠️ Ok.png yüklenemedi: {e}")
         
     def draw(self, screen, camera_offset=(0, 0)):
         draw_x = self.rect.x - camera_offset[0]
@@ -200,8 +197,12 @@ class PushTriangle(Tile):
             ]
     
     def on_player_land(self, player):
-        """Oyuncuyu ok ucunun baktığı yönün 1 önüne anında yerleştir."""
+        """Oyuncuyu ok ucunun baktığı yönün 1 önüne anında yerleştir; temas can götürür."""
         if self.direction is None:
+            return
+        # İtme okuna basmak 1 can düşürür
+        alive = player.resource_manager.take_hit("Push arrow")
+        if not alive:
             return
         dir_map = {
             DIR_RIGHT: (1, 0),
@@ -225,6 +226,8 @@ class PushTriangle(Tile):
         player.y = target_gy * GRID_SIZE
         player.rect.x = player.x
         player.rect.y = player.y
+        # Oyuncu itildi bayrağını set et (hedef tile'ın hasarını almayacak)
+        player.just_pushed = True
         print(f"🏹 Snapped player in front of {self.direction} arrow to ({target_gx},{target_gy})")
     
     def reverse_direction(self):

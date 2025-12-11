@@ -4,12 +4,15 @@ Ana oyun döngüsü ve state yönetimi (Unity GameManager benzeri)
 """
 import pygame
 import sys
+import os
+import json
 import config
 from config import *
 from Scripts.Utils.Constants import *
 from Levels.LevelData import LevelData
 from Levels.LevelLoader import LevelLoader
 from Scripts.Systems.RotationManager import RotationManager
+from Scripts.Systems.ResourceManager import ResourceManager
 
 class GameManager:
     """
@@ -34,6 +37,9 @@ class GameManager:
         
         pygame.display.set_caption("ReVerse | Puzzle Platformer")
         self.is_maximized = False
+
+        # Ortak kaynak yöneticisi (can + jump token) — level geçişinde korunur
+        self.resource_manager = ResourceManager()
         
         # Render surface (gerçek oyun grid boyutunda)
         self.render_surface = pygame.Surface((GRID_SIZE * GRID_COLS, GRID_SIZE * GRID_ROWS))
@@ -66,8 +72,10 @@ class GameManager:
         self.font_medium = pygame.font.Font(None, int(28 * SCALE))
         self.font_large = pygame.font.Font(None, int(48 * SCALE))
         
-        
-        
+        # Font cache (HUD metinleri için)
+        self._font_cache = {}
+        self._init_font_cache()
+
         # Debug overlay
         self.debug_enabled = False
         # Help overlay (TAB to toggle)
@@ -78,6 +86,36 @@ class GameManager:
         self.rotate_cooldown = 0.0
         # Rotate tetikleme kenar algılama (üzerinden ayrılmadan tekrar tetiklenmesin)
         self.on_rotate = False
+        
+        # Zamanlayıcı ve en iyi süreler
+        self.level_start_time = 0.0
+        self.level_end_time = 0.0   # Win/GameOver olduğunda süreyi dondur
+        self.best_times = {}
+        self.best_times_path = os.path.join(os.getcwd(), "best_times.json")
+        self._load_best_times()
+        
+        # Anahtar spawn kontrolü
+        self.key_spawn_point = None
+        self.key_spawned = False
+    
+    def _init_font_cache(self):
+        """HUD için sık kullanılan font boyutlarını önbellek"""
+        base_sizes = [12, 14, 16, 18, 20]
+        for size in base_sizes:
+            scaled_size = int(size * SCALE)
+            try:
+                self._font_cache[scaled_size] = pygame.font.SysFont('consolas', scaled_size, bold=False)
+            except:
+                self._font_cache[scaled_size] = pygame.font.Font(None, scaled_size)
+    
+    def _get_cached_font(self, size):
+        """Cache'den font al, yoksa oluştur"""
+        if size not in self._font_cache:
+            try:
+                self._font_cache[size] = pygame.font.SysFont('consolas', size, bold=False)
+            except:
+                self._font_cache[size] = pygame.font.Font(None, size)
+        return self._font_cache[size]
     
     def toggle_fullscreen(self):
         """Tam ekran modunu aç/kapat"""
@@ -134,6 +172,28 @@ class GameManager:
             self.collectibles = self.level_objects["collectibles"]
             self.door = self.level_objects["door"]
             self.rotation_symbols = self.level_objects["rotation_symbols"]
+            # Can/jump durumunu level geçişinde koru
+            try:
+                self.player.resource_manager = self.resource_manager
+            except Exception:
+                pass
+            # Level'e özel oyuncu sprite'ı uygula
+            try:
+                if level_number == 2:
+                    self.player.set_sprite("Assets/Sprites/Avatar_Level2.png")
+                else:
+                    self.player.restore_default_sprite()
+            except Exception as e:
+                print(f"⚠️ Level sprite switch failed: {e}")
+            # Anahtar spawn noktası (anahtar başlangıçta gizli)
+            self.key_spawn_point = self.level_objects.get("key_spawn_point")
+            self.key_spawned = False
+            # Her level'de kapı için anahtar gereksinimi varsayılan: True
+            try:
+                self.player.require_key = True
+            except Exception:
+                pass
+
             # Tek seferlik kullanılan rotate sembollerini filtrele
             used_set = self.used_rotation_symbols.get(level_number, set())
             if used_set:
@@ -163,10 +223,15 @@ class GameManager:
             if hidden:
                 print(f"🙈 Hidden previously collected items: {hidden}")
 
+            # Timer'i sıfırla (ilk draw frame'inde başlayacak)
+            self.level_start_time = 0.0
+            # Yıldız şartı zaten sağlanmışsa anahtarı hemen göster
+            self._maybe_spawn_key_if_ready()
+
             print(f"✅ Level {level_number} loaded successfully!")
             return True
         
-        except Exception as e:
+        except (KeyError, ValueError, AttributeError) as e:
             print(f"❌ Error loading level: {e}")
             return False
     
@@ -221,6 +286,11 @@ class GameManager:
                 elif event.key == pygame.K_TAB:
                     self.help_enabled = not self.help_enabled
                     print(f"❓ Help overlay: {'ON' if self.help_enabled else 'OFF'}")
+
+                # B - Reset best time (only on win/game over screens)
+                elif event.key == pygame.K_b:
+                    if self.state in (STATE_WIN, STATE_GAME_OVER):
+                        self._reset_best_time_current_level()
     
     def update(self, dt):
         """
@@ -255,6 +325,9 @@ class GameManager:
         
         # Player güncelle
         self.player.update(dt, self.tiles)
+
+        # Yıldızlar tamamlandıysa anahtarı spawn et
+        self._maybe_spawn_key_if_ready()
         
         # Collectible'ları kontrol et
         collected = self.player.check_collectibles(self.collectibles)
@@ -303,6 +376,9 @@ class GameManager:
             self.on_rotate = False
         
         # Kapı kontrolü
+        # Kapı her levelde anahtar gerektirir (anahtar taşınmıyorsa tekrar alınmalı)
+        if hasattr(self.player, 'require_key'):
+            self.player.require_key = True
         if self.door and self.player.rect.colliderect(self.door.rect):
             if self.door.try_enter(self.player, current_time):
                 self.level_complete()
@@ -339,6 +415,11 @@ class GameManager:
     
     def draw(self):
         """Ekrana çizim"""
+        # Timer'ı ilk frame'de başlat (ekran göründüğünde)
+        if self.level_start_time == 0.0:
+            self.level_start_time = pygame.time.get_ticks() / 1000.0
+            self.level_end_time = 0.0
+        
         # Arka plan (render surface'e çiz)
         self.render_surface.fill(BG_COLOR)
         
@@ -352,11 +433,15 @@ class GameManager:
         
         # Önce üst HUD’ı ekrana çiz (haritanın üzerinde bağımsız)
         self.player.draw_ui(self.screen)
+        # HUD meta: hedef metni ve zamanlayıcılar
+        self._draw_hud_meta()
         
-        # Haritayı HUD’ın altında çizecek şekilde ölçekle ve konumlandır
-        map_height = max(0, SCREEN_HEIGHT - HUD_HEIGHT)
-        scaled_surface = pygame.transform.scale(self.render_surface, (SCREEN_WIDTH, map_height))
-        self.screen.blit(scaled_surface, (0, HUD_HEIGHT))
+        # Haritayı HUD’ın altında çizecek şekilde ölçekle ve konumlandır (dinamik boyut)
+        sw, sh = self.screen.get_size()
+        bar_h = self._hud_bar_height()
+        map_height = max(0, sh - bar_h)
+        scaled_surface = pygame.transform.scale(self.render_surface, (sw, map_height))
+        self.screen.blit(scaled_surface, (0, bar_h))
         
         # State'e göre overlay
         if self.state == STATE_WIN:
@@ -402,7 +487,8 @@ class GameManager:
             else:
                 # Varsayılan: oyuncu UI'sini yine de çiz, fakat metinler oyunda kaldırılacak
                 self.player.draw_ui(self.screen)
-        except Exception:
+        except (AttributeError, TypeError) as e:
+            print(f"⚠️ Player UI draw failed: {e}")
             self.player.draw_ui(self.screen)
         
         # Oyun içi Level/FPS yazılarını gizle (sadece debug panelde gösterilecek)
@@ -425,6 +511,182 @@ class GameManager:
         hint_text = self.font_medium.render("Press R to try a new strategy", True, UI_TEXT_COLOR)
         hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 50))
         self.screen.blit(hint_text, hint_rect)
+
+        reset_text = self.font_medium.render("Press B to reset best time", True, UI_TEXT_COLOR)
+        reset_rect = reset_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 90))
+        self.screen.blit(reset_text, reset_rect)
+
+    def _format_time(self, seconds: float) -> str:
+        seconds = max(0.0, float(seconds))
+        m = int(seconds // 60)
+        s = int(seconds % 60)
+        cs = int((seconds - int(seconds)) * 100)  # centiseconds
+        return f"{m:02d}:{s:02d}.{cs:02d}"
+
+    def _load_best_times(self):
+        try:
+            if os.path.exists(self.best_times_path):
+                with open(self.best_times_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        self.best_times = data
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"⚠️ Best times yüklenemedi: {e}")
+            self.best_times = {}
+
+    def _save_best_times(self):
+        try:
+            with open(self.best_times_path, "w", encoding="utf-8") as f:
+                json.dump(self.best_times, f, ensure_ascii=False, indent=2)
+        except IOError as e:
+            print(f"⚠️ Best times kaydedilemedi: {e}")
+
+    def _current_level_best(self):
+        key = str(self.current_level)
+        val = self.best_times.get(key)
+        try:
+            return float(val) if val is not None else None
+        except (ValueError, TypeError):
+            return None
+
+    def _update_best_time_if_better(self, elapsed: float):
+        key = str(self.current_level)
+        prev = self._current_level_best()
+        if prev is None or elapsed < prev:
+            self.best_times[key] = round(float(elapsed), 3)
+            self._save_best_times()
+
+    def _reset_best_time_current_level(self):
+        key = str(self.current_level)
+        if key in self.best_times:
+            del self.best_times[key]
+            self._save_best_times()
+            print(f"⏱️ Best time for level {key} reset.")
+        else:
+            print("ℹ️ No best time to reset for this level.")
+
+    def _draw_hud_meta(self):
+        # Ekran boyutu ve metinler
+        sw, sh = self.screen.get_size()
+        bar_h = self._hud_bar_height()
+        # Merkez zamanlayıcı
+        now = self.level_end_time if self.level_end_time else pygame.time.get_ticks() / 1000.0
+        elapsed = now - self.level_start_time if self.level_start_time else 0.0
+        best = self._current_level_best()
+        best_text = self._format_time(best) if best is not None else "--:--.--"
+        now_text = self._format_time(elapsed)
+        center_text = f"Best: {best_text} | Now: {now_text}"
+        # Daha okunaklı açık renk
+        # Responsive center timer: shrink or split into 2 lines if needed
+        margin = int(10 * SCALE)
+        max_center_width = int(sw * 0.3) - margin  # center area: max 30% width
+        font_size = int(16 * SCALE)
+        center_font = self._get_cached_font(font_size)
+        center_surf = center_font.render(center_text, True, (235, 235, 235))
+        # Reduce font size until it fits, but keep legible
+        while center_surf.get_width() > max_center_width and font_size > int(12 * SCALE):
+            font_size -= 1
+            center_font = self._get_cached_font(font_size)
+            center_surf = center_font.render(center_text, True, (235, 235, 235))
+        # If still too wide, split into two lines: Best / Now
+        if center_surf.get_width() > max_center_width:
+            best_line = f"Best: {best_text}"
+            now_line = f"Now:  {now_text}"
+            best_surf = center_font.render(best_line, True, (235, 235, 235))
+            now_surf = center_font.render(now_line, True, (235, 235, 235))
+            total_h = best_surf.get_height() + 2 + now_surf.get_height()
+            bx = (sw - best_surf.get_width()) // 2
+            by = (bar_h - total_h) // 2
+            # Shadows
+            best_shadow = center_font.render(best_line, True, (0, 0, 0))
+            now_shadow = center_font.render(now_line, True, (0, 0, 0))
+            self.screen.blit(best_shadow, (bx + 1, by + 1))
+            self.screen.blit(best_surf, (bx, by))
+            ny = by + best_surf.get_height() + 2
+            nx = (sw - now_surf.get_width()) // 2
+            self.screen.blit(now_shadow, (nx + 1, ny + 1))
+            self.screen.blit(now_surf, (nx, ny))
+        else:
+            center_rect = center_surf.get_rect(center=(sw // 2, bar_h // 2))
+            shadow = center_font.render(center_text, True, (0, 0, 0))
+            self.screen.blit(shadow, (center_rect.x + 1, center_rect.y + 1))
+            self.screen.blit(center_surf, center_rect.topleft)
+
+        # Sağ tarafta hedef başlık + metin
+        # Right margin for objective (separate from timer)
+        right_margin = int(15 * SCALE)
+        title_font = self._get_cached_font(int(14 * SCALE))
+        body_font = self._get_cached_font(int(12 * SCALE))
+        
+        # Dynamically generate objective based on game state
+        title = "STATUS"
+        stars = self.player.stars_collected if hasattr(self.player, 'stars_collected') else 0
+        required = self.player.required_stars if hasattr(self.player, 'required_stars') else STARS_TO_WIN
+        has_key = self.player.has_key if hasattr(self.player, 'has_key') else False
+        
+        key_status = "Yes" if has_key else "No"
+        if stars < required:
+            body = f"Stars: {stars}/{required}  Key: {key_status}  Collect all stars"
+        elif not has_key:
+            body = f"Stars: {stars}/{required}  Key: {key_status}  Obtain the key"
+        else:
+            body = f"Stars: {stars}/{required}  Key: {key_status}  Go to exit"
+        
+        title_surf = title_font.render(title, True, (235, 235, 235))
+
+        # Right-side max width for wrapping (about 25% of screen width on far right)
+        max_width = int(sw * 0.25) - right_margin
+
+        # Wrap body into lines
+        words = body.split(' ')
+        lines = []
+        current = ''
+        for w in words:
+            test = (current + ' ' + w).strip()
+            test_surf = body_font.render(test, True, (235, 235, 235))
+            if test_surf.get_width() <= max_width:
+                current = test
+            else:
+                if current:
+                    lines.append(current)
+                current = w
+        if current:
+            lines.append(current)
+        # Allow up to 5 lines; no ellipsis needed (show full text wrapped)
+        # No truncation—let it wrap naturally
+
+        # Compute total body height (tighter line spacing)
+        line_spacing = 1  # pixels between lines
+        body_surfs = [body_font.render(line, True, (235, 235, 235)) for line in lines]
+        total_body_h = sum(s.get_height() for s in body_surfs) + (len(body_surfs) - 1) * line_spacing
+
+        # Right alignment positions within HUD band
+        tx = sw - right_margin - title_surf.get_width()
+        # Center vertically: title + body block inside bar_h
+        ty = max(2, (bar_h - (title_surf.get_height() + 2 + total_body_h)) // 2)
+
+        # Draw title with shadow
+        title_shadow = title_font.render(title, True, (0, 0, 0))
+        self.screen.blit(title_shadow, (tx + 1, ty + 1))
+        self.screen.blit(title_surf, (tx, ty))
+
+        # Draw wrapped body lines right-aligned with shadow
+        by = ty + title_surf.get_height() + 2
+        line_spacing = 1
+        for idx, s in enumerate(body_surfs):
+            bx = sw - right_margin - s.get_width()
+            shadow_line = lines[idx]
+            body_shadow = body_font.render(shadow_line, True, (0, 0, 0))
+            self.screen.blit(body_shadow, (bx + 1, by + 1))
+            self.screen.blit(s, (bx, by))
+            by += s.get_height() + line_spacing
+
+    def _hud_bar_height(self):
+        """Player UI ile aynı üst bar yüksekliğini hesapla."""
+        heart_size = int(32 * SCALE)
+        token_size = int(20 * SCALE)
+        bar_h = max(int(54 * SCALE), heart_size + token_size + int(16 * SCALE))
+        return bar_h
     
     def _draw_debug_overlay(self):
         # Panel config
@@ -562,6 +824,10 @@ class GameManager:
         hint_text = self.font_medium.render("Press R to restart", True, UI_TEXT_COLOR)
         hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 50))
         self.screen.blit(hint_text, hint_rect)
+
+        reset_text = self.font_medium.render("Press B to reset best time", True, UI_TEXT_COLOR)
+        reset_rect = reset_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 90))
+        self.screen.blit(reset_text, reset_rect)
     
     def rotate_world(self):
         """
@@ -574,12 +840,17 @@ class GameManager:
         """Level tamamlandı"""
         self.state = STATE_WIN
         print(f"🎉 Level {self.current_level} completed!")
+        # Süreyi kaydet (en iyi - en hızlı)
+        self.level_end_time = pygame.time.get_ticks() / 1000.0
+        elapsed = self.level_end_time - self.level_start_time if self.level_start_time else 0.0
+        self._update_best_time_if_better(elapsed)
         self.reset_player_progress()
     
     def game_over(self):
         """Game Over"""
         self.state = STATE_GAME_OVER
         print("💀 Game Over!")
+        self.level_end_time = pygame.time.get_ticks() / 1000.0
         self.reset_player_progress()
     
     def reset_level(self):
@@ -591,6 +862,13 @@ class GameManager:
         self.rotate_cooldown = 0.5
         # Yeni levele geçerken oyuncu hâlâ bir rotate üzerinde olabilir; tekrar tetiklenmeyi engelle
         self.on_rotate = True
+        # Timer'i sıfırla (ilk draw frame'inde yeniden başlayacak)
+        self.level_start_time = 0.0
+        self.level_end_time = 0.0
+        # Anahtarı şart sağlanmadıysa gizle
+        if hasattr(self, 'collectibles'):
+            self.collectibles = [c for c in self.collectibles if c.__class__.__name__ != 'Key']
+        self.key_spawned = False
         print("🔄 Level restarted!")
     
     def next_level(self):
@@ -615,6 +893,14 @@ class GameManager:
         saved_grid = (self.player.grid_x, self.player.grid_y) if (preserve_pos and hasattr(self, 'player')) else None
         self.current_level = target_level
         self.load_level(self.current_level)
+        # Level'a göre anahtar gereksinimini yeniden uygula (taşıma senaryolarında garanti et)
+        try:
+            self.player.require_key = True
+            # Level 2+ geçişlerinde (veya genel) anahtarı sıfırla; yeni levelde anahtar toplanmalı
+            if self.current_level != 1:
+                self.player.has_key = False
+        except Exception:
+            pass
         if carried_stars is not None:
             self.player.stars_collected = carried_stars
         if carried_key is not None:
@@ -633,6 +919,8 @@ class GameManager:
             self.player.y = gy * GRID_SIZE
             self.player.rect.x = self.player.x
             self.player.rect.y = self.player.y
+        # Yıldız/anahtar durumu güncellendikten sonra anahtarı gerekirse spawn et
+        self._maybe_spawn_key_if_ready()
         self.state = STATE_PLAYING
     
     def quit(self):
@@ -669,6 +957,27 @@ class GameManager:
         except Exception:
             pass
         print("🧹 Player progress reset (stars, key, collections)")
+
+    def _maybe_spawn_key_if_ready(self):
+        """Yeterli yıldız toplandıysa anahtarı sahneye ekle."""
+        if self.key_spawned:
+            return
+        if not self.key_spawn_point:
+            return
+        # Level 1'de anahtar hiç görünmesin
+        if self.current_level == 1:
+            return
+        # Gerekli yıldızlar toplandı mı?
+        if hasattr(self.player, 'required_stars') and self.player.stars_collected >= self.player.required_stars:
+            x, y, size = self.key_spawn_point
+            try:
+                from Scripts.Entities.Collectible import Key
+                key_obj = Key(x, y, size)
+                self.collectibles.append(key_obj)
+                self.key_spawned = True
+                print("🗝️ Anahtar ortaya çıktı!")
+            except Exception as e:
+                print(f"⚠️ Anahtar spawn hatası: {e}")
 
 
 # ============================================

@@ -90,9 +90,9 @@ class Star(Collectible):
         try:
             self.sprite = pygame.image.load(asset_path("Assets/Sprites/Yildiz.png"))
             self.sprite = pygame.transform.scale(self.sprite, (size, size))
-        except:
+        except (FileNotFoundError, pygame.error) as e:
             self.sprite = None
-            print("⚠️ Yildiz.png yüklenemedi")
+            print(f"⚠️ Yildiz.png yüklenemedi: {e}")
         
     def draw(self, screen, camera_offset=(0, 0)):
         if self.collected:
@@ -131,6 +131,9 @@ class Star(Collectible):
     def collect(self, player):
         super().collect(player)
         player.stars_collected += 1
+        # Yıldız toplandığında can ekle
+        if player.resource_manager:
+            player.resource_manager.add_life()
         print(f"⭐ Star collected! Total: {player.stars_collected}")
 
 
@@ -145,9 +148,9 @@ class Key(Collectible):
         try:
             self.sprite = pygame.image.load(asset_path("Assets/Sprites/Key.png"))
             self.sprite = pygame.transform.scale(self.sprite, (size, size))
-        except:
+        except (FileNotFoundError, pygame.error) as e:
             self.sprite = None
-            print("⚠️ Key.png yüklenemedi")
+            print(f"⚠️ Key.png yüklenemedi: {e}")
         
     def draw(self, screen, camera_offset=(0, 0)):
         if self.collected:
@@ -202,10 +205,10 @@ class Door(Collectible):
             # Smooth scale ile kaliteyi koru
             self.sprite_closed = pygame.transform.smoothscale(closed_img, (size, size))
             self.sprite_open = pygame.transform.smoothscale(open_img, (size, size))
-        except:
+        except (FileNotFoundError, pygame.error) as e:
             self.sprite_closed = None
             self.sprite_open = None
-            print("⚠️ Kapi.png veya AcikKapi.png yüklenemedi")
+            print(f"⚠️ Kapi.png veya AcikKapi.png yüklenemedi: {e}")
         
     def draw(self, screen, camera_offset=(0, 0), player=None):
         # Door padding kullanmıyor, tam kare
@@ -216,18 +219,17 @@ class Door(Collectible):
         if self.sprite_closed and self.sprite_open:
             # Oyuncu bilgisi varsa ona göre, yoksa is_open'a göre
             if player:
-                # Sadece anahtar alındıysa açık kapı görseli
-                can_open = player.has_key
-                sprite = self.sprite_open if can_open else self.sprite_closed
+                # Yalnızca gerçekten girebilir durumdaysa (anahtar/gereksinim + yıldızlar) açık göster
+                can_enter = self.can_enter(player)
+                sprite = self.sprite_open if can_enter else self.sprite_closed
             else:
                 sprite = self.sprite_open if self.is_open else self.sprite_closed
             screen.blit(sprite, (draw_x, draw_y))
         else:
             # Fallback: Renkli kapı
             if player:
-                # Sadece anahtar alındıysa açık kapı rengi
-                can_open = player.has_key
-                color = (50, 255, 50) if can_open else self.color
+                can_enter = self.can_enter(player)
+                color = (50, 255, 50) if can_enter else self.color
             else:
                 color = self.color if not self.is_open else (50, 255, 50)
             pygame.draw.rect(screen, color, (draw_x, draw_y, self.size, self.size))
@@ -246,7 +248,9 @@ class Door(Collectible):
             bool: Girebilir mi?
         """
         # Anahtarı var mı ve yeterli yıldızı topladı mı?
-        return player.has_key and player.stars_collected >= player.required_stars
+        require_key = getattr(player, 'require_key', True)
+        has_key_or_not_required = (player.has_key or not require_key)
+        return has_key_or_not_required and player.stars_collected >= player.required_stars
     
     def try_enter(self, player, current_time):
         """
@@ -301,9 +305,9 @@ class RotateSymbol:
             target_w = int(self.size * 0.6)
             target_h = int(self.size * 0.6)
             self.symbol_sprite = pygame.transform.smoothscale(base_sprite, (target_w, target_h))
-        except:
+        except (FileNotFoundError, pygame.error) as e:
             self.symbol_sprite = None
-            print("⚠️ BombeliOk.png yüklenemedi, vektörel ok çizimi kullanılacak")
+            print(f"⚠️ BombeliOk.png yüklenemedi: {e}")
         
     def draw(self, screen, camera_offset=(0, 0)):
         draw_x = self.rect.x - camera_offset[0]

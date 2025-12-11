@@ -137,7 +137,7 @@ class SplashScene:
         self.screen.blit(subtitle_surface, subtitle_rect)
         
         # Studio adı (opsiyonel)
-        studio_surface = self.font_small.render("Vize Oyun Projesi", True, (255, 255, 255))
+        studio_surface = self.font_small.render("Mid-term Game Project", True, (255, 255, 255))
         studio_surface.set_alpha(alpha)
         studio_rect = studio_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50))
         self.screen.blit(studio_surface, studio_rect)

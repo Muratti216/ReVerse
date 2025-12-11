@@ -1,95 +1,63 @@
 # ReVerse | Puzzle Platformer
 
-ReVerse, Python + Pygame ile geliştirilmiş, 3x3 can sistemi ve harita dönüş mekanikleriyle öne çıkan, grid tabanlı bir bulmaca/aksiyon platform oyunudur.
+Grid tabanlı, iki level arasında dönen, health/jump hakları ortak tutulan küçük bir bulmaca-aksiyon. Hedef: Yıldızları topla, anahtarı al, kapıya eriş.
 
-## Özellikler
+## Nasıl oynanır
 
-- Grid tabanlı hareket ve kare harita yapısı
-- 3x3 can sistemi (3 ana can × her can için 3 zıplama hakkı)
-- Zararlı (siyah çizgili) zeminlerde zıplama hakları tüketimi
-- Tek-seferlik döndürme sembolleri ve çift dünya/katman rotasyonu
-- Yıldız (puan) ve Anahtar (kapı açma) toplanabilir öğeleri
-- Kapı (çıkış) mekaniği: Anahtar ve yeterli yıldız olmadan açılmaz
-- İtici Ok (PushTriangle) zeminleri: Oyuncuyu belirli yöne iter ve inişte ok ucunun önüne hizalar
-- Üstte bağımsız HUD (canlar ve zıplama hakları), harita HUD’ın altında render edilir
-- Sağ tarafta Debug Panel (N ile aç/kapat)
-  - Seviye, oyuncu konumu, yıldız/anahtar durumu
-  - Canlar, zıplama tokenları, rotasyon bekleme süresi
-  - Tile/Collectible/Rotate sayıları, FPS
-  - God Mode: ON/OFF durumu
-- Sağ tarafta Yardım Paneli (TAB ile aç/kapat) – kontrol rehberi
-- Pencere özellikleri: yeniden boyutlandırılabilir, F10 ile maximize, F11 ile fullscreen
-- Win ekranında ipucu: "Press R to try a new strategy"
+- Health-jump havuzu ortaktır: 3 ana health × her can için 3 jump hakkı. Jump modundayken her hamlede hak düşer; hak 0 olursa 1 health gider ve haklar tazelenir.
+- Tüm engeller 1 health düşürür (siyah blok, itici ok inişi). health kalırsa jump hakların yenilenir; health 0 ise Game Over.
+- Yıldızları topla → anahtar spawn olur (Level 1’de anahtar görünmez, Level 2’de çıkar). Kapı sadece yeterli yıldız + anahtar ile açılır.
+- Timer üstte: Best / Now. Sağda durum: Stars, Key, hedef (collect / get key / exit).
+- Level 1 ve 2 arasında geçişte health ve jump hakları korunur.
 
 ## Kontroller
 
-- `A` / `Sol Ok`: Sola hareket
-- `D` / `Sağ Ok`: Sağa hareket
-- `SPACE`: Zıplama
-- `R`: Seviyeyi yeniden başlat
-- `N`: Debug panelini aç/kapat
-- `TAB`: Yardım panelini aç/kapat
-- `G`: God Mode aç/kapat (debug)
-- `F10`: Pencereyi büyüt/küçült (maximize)
-- `F11`: Tam ekran
-- `ESC`: Çıkış
+- A / Sol Ok: Sola
+- D / Sağ Ok: Sağa
+- SPACE: Jump modunu aç/kapat, sonra yön tuşu ile zıpla
+- R: Level reset
+- N: Debug panel
+- TAB: Yardım paneli
+- G: God Mode (debug)
+- F10: Pencereyi büyüt/küçült
+- F11: Tam ekran
+- ESC: Çıkış
 
-## God Mode
+## Derleme (Windows)
 
-- Açıkken zararlı zeminlere inişlerde hasar alınmaz.
-- Debug panelinde "GodMode: ON/OFF" olarak görünür.
-
-## Build Alma (Windows)
-
-PyInstaller ile tek klasör çıkışı alınır. İkon opsiyoneldir.
-
-Bağımlılık yüklemeyi atlamak isterseniz doğrudan PyInstaller komutunu çalıştırın.
-
- 
- 
 ```pwsh
-py -m PyInstaller \
-  --name ReVerse \
-  --icon "Assets/Sprites/Avatar.ico" \
-  --add-data "Assets;Assets" \
-  --add-data "Levels;Levels" \
-  --add-data "Scenes;Scenes" \
-  --add-data "Scripts;Scripts" \
-  --add-data "README.md;." \
-  --noconfirm \
-  --onedir \
-  --clean \
-  --distpath "Build" \
+py -m PyInstaller ^
+  --name ReVerse ^
+  --icon "Assets/Sprites/Avatar.ico" ^
+  --add-data "Assets;Assets" ^
+  --add-data "Levels;Levels" ^
+  --add-data "Scenes;Scenes" ^
+  --add-data "Scripts;Scripts" ^
+  --add-data "README.md;." ^
+  --noconfirm ^
+  --onedir ^
+  --clean ^
+  --distpath "Build" ^
   main.py
 ```
 
-Çıktıyı çalıştırmak için:
+Çalıştırmak için:
 
 ```pwsh
 Start-Process "Build\ReVerse\ReVerse.exe"
 ```
 
-> Notlar:
->
-> - `--onedir` önerilir (asset ve Pygame DLL uyumluluğu için).
-> - `--add-data` Windows’ta `kaynak;hedef` biçimindedir.
-> - İkon dosyanız yoksa `--icon` bayrağını kaldırabilirsiniz.
+Notlar: `--onedir` tercih edin; `--add-data` Windows’ta `kaynak;hedef`; ikon yoksa `--icon`’ı çıkarabilirsiniz.
 
-## Mimari
+## Dosya rehberi
 
-- `main.py`: Giriş noktası (splash, normal ve quick start)
-- `Scripts/Core/GameManager.py`: Ana döngü, input, sahne ve overlay yönetimi
-- `Levels/LevelData.py` ve `Levels/LevelLoader.py`: Harita veri ve yükleme
-- `Scripts/Entities/Tile.py`: Zemin tipleri (Güvenli, Zararlı, İtici Ok)
-- `Scripts/Entities/Collectible.py`: Yıldız, Anahtar, Kapı, Döndürme sembolü
-- `Scripts/Systems/ResourceManager.py`: 3x3 can sistemi, zıplama tokenları
-- `Scripts/Systems/RotationManager.py`: Harita/dünya rotasyonu
-- `config.py`: Ekran, ölçek, HUD yüksekliği (`HUD_HEIGHT`), GOD_MODE ve renkler
-
-## Bilinen Davranışlar
-
-- Döndürme sembolleri tek kullanımlıktır ve katman/dünya değiştirir.
-- İtici Ok zeminleri inişte oyuncuyu okun ucunun önündeki güvenli kareye hizalar.
-- Kapılar yalnızca anahtar ve yeterli yıldız ile açılır.
+- `main.py`: Giriş, splash/quick mod
+- `Scripts/Core/GameManager.py`: Döngü, state, HUD, timer
+- `Levels/LevelData.py`, `Levels/LevelLoader.py`: Haritalar
+- `Scripts/Entities/Tile.py`: Zeminler (güvenli, zarar, itici ok)
+- `Scripts/Entities/Collectible.py`: Yıldız, anahtar, kapı, döndürme
+- `Scripts/Systems/ResourceManager.py`: Health + jump hakları (ortak havuz)
+- `Scripts/Systems/RotationManager.py`: Dünya/level rotasyonu
+- `config.py`: Ayarlar
 
 İyi oyunlar! 🎮

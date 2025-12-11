@@ -23,20 +23,21 @@ class Player:
         
         # Sprite yükle
         try:
-            self.sprite = pygame.image.load(asset_path("Assets/Sprites/Avatar.png"))
+            self._default_sprite_path = "Assets/Sprites/Avatar.png"
+            self.sprite = pygame.image.load(asset_path(self._default_sprite_path))
             self.sprite = pygame.transform.scale(self.sprite, (size, size))
-        except:
+        except (FileNotFoundError, pygame.error) as e:
             self.sprite = None
-            print("⚠️ Avatar.png yüklenemedi, daire çizilecek")
+            print(f"⚠️ Avatar.png yüklenemedi: {e}")
         
         # Kalp sprite yükle (UI için)
         try:
             heart_size = int(32 * SCALE)  # Kalp boyutu
             self.heart_sprite = pygame.image.load(asset_path("Assets/Sprites/Kalp.png"))
             self.heart_sprite = pygame.transform.smoothscale(self.heart_sprite, (heart_size, heart_size))
-        except:
+        except (FileNotFoundError, pygame.error) as e:
             self.heart_sprite = None
-            print("⚠️ Kalp.png yüklenemedi, varsayılan UI kullanılacak")
+            print(f"⚠️ Kalp.png yüklenemedi: {e}")
         
         # Grid pozisyon
         self.grid_x = x // size
@@ -49,17 +50,35 @@ class Player:
         self.target_grid_y = self.grid_y
         self.move_progress = 0.0  # 0.0 - 1.0 arası animasyon
         self.move_speed = 8.0  # Hız çarpanı (daha yüksek = daha hızlı)
+        self.just_pushed = False  # Ok tarafından itildi mi (çift hasar önleme)
         
         # Oyun durumu
-        self.resource_manager = ResourceManager()
+        self.resource_manager = None  # GameManager tarafından set edilecek
         self.stars_collected = 0
         self.required_stars = STARS_TO_WIN
         self.has_key = False
+        self.require_key = True
         self.is_alive = True
         
         # Input throttle (tuş basılı tutmayı engelle)
         self.last_input_time = 0
         self.input_cooldown = 0.15  # saniye
+
+    def set_sprite(self, relative_path: str):
+        """Oyuncu sprite'ını değiştir (Assets/Sprites altındaki dosya)."""
+        try:
+            img = pygame.image.load(asset_path(relative_path))
+            self.sprite = pygame.transform.scale(img, (self.size, self.size))
+        except (FileNotFoundError, pygame.error) as e:
+            print(f"⚠️ Sprite yüklenemedi ({relative_path}): {e}")
+
+    def restore_default_sprite(self):
+        """Varsayılan Avatar sprite'ına geri dön."""
+        try:
+            img = pygame.image.load(asset_path(self._default_sprite_path))
+            self.sprite = pygame.transform.scale(img, (self.size, self.size))
+        except (FileNotFoundError, pygame.error) as e:
+            print(f"⚠️ Varsayılan Avatar yüklenemedi: {e}")
         
     def update(self, dt, tiles):
         """
@@ -102,9 +121,8 @@ class Player:
                 # Eğri interpolasyon (zıplarken yukarı çık)
                 t = self.move_progress
                 if self.will_jump:
-                    # Parabol eğrisi (zıplama)
-                    jump_height = -20
-                    arc = jump_height * (1 - (2*t - 1)**2)
+                    # Parabol eğrisi (zıplama) - negatif yukarı yönde hareket
+                    arc = JUMP_ARC_HEIGHT * (1 - (2*t - 1)**2)
                     self.x = start_x + (target_x - start_x) * t
                     self.y = start_y + (target_y - start_y) * t + arc
                 else:
@@ -116,7 +134,7 @@ class Player:
                 self.rect.y = int(self.y)
         
         # Oyun sonu kontrolü
-        if self.resource_manager.is_game_over():
+        if self.resource_manager and self.resource_manager.is_game_over():
             self.is_alive = False
     
     def handle_input(self, keys, current_time):
@@ -175,6 +193,13 @@ class Player:
         Args:
             dx, dy: Grid yönü (-1, 0, 1)
         """
+        # Eğer jump modundaysa önceden token tüket; bitmişse hareket etme
+        if self.will_jump:
+            if self.resource_manager:
+                can_continue = self.resource_manager.use_jump()
+                if not can_continue:
+                    self.is_alive = False
+                    return
         # Hedef grid pozisyonunu hesapla
         new_grid_x = self.grid_x + dx
         new_grid_y = self.grid_y + dy
@@ -203,6 +228,11 @@ class Player:
         Args:
             tiles: Tile listesi
         """
+        # Ok tarafından itildiyse, hedef tile'ın hasarını alma (çift hasar önleme)
+        if self.just_pushed:
+            self.just_pushed = False
+            return
+            
         for tile in tiles:
             if not tile.is_solid:
                 continue
@@ -297,6 +327,8 @@ class Player:
         font = pygame.font.Font(None, int(18 * SCALE))
         
         # Can bilgisi
+        if not self.resource_manager:
+            return
         info = self.resource_manager.get_lives_info()
         
         # Üstte yarı-transparan üst şerit ve UI yerleşimi
@@ -370,10 +402,12 @@ class Player:
         self.turn_state = "waiting"
         self.will_jump = False
         self.move_progress = 0.0
+        self.just_pushed = False  # İtme bayrağını temizle
         self.stars_collected = 0
         self.has_key = False
         self.is_alive = True
-        self.resource_manager.reset()
+        if self.resource_manager:
+            self.resource_manager.reset()
         print("🔄 Player reset!")
 
 

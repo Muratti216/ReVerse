@@ -61,16 +61,17 @@ UI_LIFE_FULL = (50, 200, 50)        # Yeşil
 UI_LIFE_EMPTY = (100, 100, 100)     # Gri
 
 # ============================================
-# PHYSICS (Fizik)
+# PHYSICS (Fizik) - Şimdilik kullanılmıyor (turn-based sistem)
 # ============================================
-GRAVITY = 0.5              # Yerçekimi
-JUMP_FORCE = -12           # Zıplama gücü
-MAX_FALL_SPEED = 15        # Maksimum düşme hızı
-MOVE_SPEED = 5             # Yatay hareket hızı
+# GRAVITY = 0.5              # Yerçekimi (ileride platform mode için)
+# JUMP_FORCE = -12           # Zıplama gücü
+# MAX_FALL_SPEED = 15        # Maksimum düşme hızı
+# MOVE_SPEED = 5             # Yatay hareket hızı
 
 # Triangle Push Force
 PUSH_FORCE_MULTIPLIER = 2  # Üçgen itme çarpanı (grid başına)
-
+# Jump Animation
+JUMP_ARC_HEIGHT = -20  # Zıplama animasyonu yüksekliği (piksel, negatif yukarı yönde)
 # ============================================
 # GAME STATES
 # ============================================

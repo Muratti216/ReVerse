@@ -29,6 +29,8 @@ class LevelLoader:
         self.start_position = None
         self.grid_width = 0
         self.grid_height = 0
+        # Anahtar doğrudan eklenmeyecek; yıldızlar tamamlanınca spawn edilecek
+        self.key_spawn_point = None  # (x, y, size)
     
     def load_level(self, level_data):
         """
@@ -73,6 +75,9 @@ class LevelLoader:
                     elif symbol == TILE_ROTATE:
                         # RotateSymbol collectible değildir; ayrı listede tutulur
                         self.rotation_symbols.append(collectible)
+                    elif symbol == TILE_KEY:
+                        # Anahtarı hemen eklemek yerine konumunu kaydet
+                        self.key_spawn_point = (x, y, self.grid_size)
                     else:
                         # Yıldız ve Anahtar gibi toplanabilirler
                         self.collectibles.append(collectible)
@@ -114,7 +119,8 @@ class LevelLoader:
             "door": self.door,
             "rotation_symbols": self.rotation_symbols,
             "start_position": self.start_position,
-            "grid_size": (self.grid_width, self.grid_height)
+            "grid_size": (self.grid_width, self.grid_height),
+            "key_spawn_point": self.key_spawn_point
         }
     
     def get_pushable_tiles(self):
