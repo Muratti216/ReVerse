@@ -87,10 +87,10 @@ class GameManager:
         # Rotate tetikleme kenar algılama (üzerinden ayrılmadan tekrar tetiklenmesin)
         self.on_rotate = False
         
-        # Zamanlayıcı ve en iyi süreler
-        self.level_start_time = 0.0
-        self.level_end_time = 0.0   # Win/GameOver olduğunda süreyi dondur
-        self.best_times = {}
+        # Zamanlayıcı ve en iyi süreler (TOTAL game time, not per level)
+        self.total_start_time = 0.0  # Oyun başlangıç zamanı (Level 1 ilk frame)
+        self.total_end_time = 0.0    # Win/GameOver olduğunda süreyi dondur
+        self.best_time = None        # En iyi TOTAL süre (tek bir değer)
         self.best_times_path = os.path.join(os.getcwd(), "best_times.json")
         self._load_best_times()
         
@@ -223,8 +223,10 @@ class GameManager:
             if hidden:
                 print(f"🙈 Hidden previously collected items: {hidden}")
 
-            # Timer'i sıfırla (ilk draw frame'inde başlayacak)
-            self.level_start_time = 0.0
+            # Timer sadece Level 1 yüklendiğinde sıfırlanır (ilk draw frame'inde başlayacak)
+            # Level 2+ geçişlerinde timer devam eder
+            if level_number == 1:
+                self.total_start_time = 0.0
             # Yıldız şartı zaten sağlanmışsa anahtarı hemen göster
             self._maybe_spawn_key_if_ready()
 
@@ -298,10 +300,11 @@ class GameManager:
                     print(f"❓ Help overlay: {'ON' if self.help_enabled else 'OFF'}")
 
 
-                # B - Reset best time (only on win/game over screens)
+                # B - Reset best time and restart (only on win/game over screens)
                 elif event.key == pygame.K_b:
                     if self.state in (STATE_WIN, STATE_GAME_OVER):
-                        self._reset_best_time_current_level()
+                        self._reset_best_time()
+                        self.reset_level()
     
     def update(self, dt):
         """
@@ -427,9 +430,9 @@ class GameManager:
     def draw(self):
         """Ekrana çizim"""
         # Timer'ı ilk frame'de başlat (ekran göründüğünde)
-        if self.level_start_time == 0.0:
-            self.level_start_time = pygame.time.get_ticks() / 1000.0
-            self.level_end_time = 0.0
+        if self.total_start_time == 0.0:
+            self.total_start_time = pygame.time.get_ticks() / 1000.0
+            self.total_end_time = 0.0
         
         # Arka plan (render surface'e çiz)
         self.render_surface.fill(BG_COLOR)
@@ -523,7 +526,7 @@ class GameManager:
         hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 50))
         self.screen.blit(hint_text, hint_rect)
 
-        reset_text = self.font_medium.render("Press B to reset best time", True, UI_TEXT_COLOR)
+        reset_text = self.font_medium.render("Press B to reset best time & restart", True, UI_TEXT_COLOR)
         reset_rect = reset_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 90))
         self.screen.blit(reset_text, reset_rect)
 
@@ -539,52 +542,45 @@ class GameManager:
             if os.path.exists(self.best_times_path):
                 with open(self.best_times_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if isinstance(data, dict):
-                        self.best_times = data
+                    # Load single best time value
+                    if isinstance(data, dict) and "best_total" in data:
+                        self.best_time = float(data["best_total"])
+                    elif isinstance(data, (int, float)):
+                        self.best_time = float(data)
         except (json.JSONDecodeError, IOError) as e:
-            print(f"⚠️ Best times yüklenemedi: {e}")
-            self.best_times = {}
+            print(f"⚠️ Best time yüklenemedi: {e}")
+            self.best_time = None
 
     def _save_best_times(self):
         try:
             with open(self.best_times_path, "w", encoding="utf-8") as f:
-                json.dump(self.best_times, f, ensure_ascii=False, indent=2)
+                json.dump({"best_total": self.best_time}, f, ensure_ascii=False, indent=2)
         except IOError as e:
-            print(f"⚠️ Best times kaydedilemedi: {e}")
-
-    def _current_level_best(self):
-        key = str(self.current_level)
-        val = self.best_times.get(key)
-        try:
-            return float(val) if val is not None else None
-        except (ValueError, TypeError):
-            return None
+            print(f"⚠️ Best time kaydedilemedi: {e}")
 
     def _update_best_time_if_better(self, elapsed: float):
-        key = str(self.current_level)
-        prev = self._current_level_best()
-        if prev is None or elapsed < prev:
-            self.best_times[key] = round(float(elapsed), 3)
+        if self.best_time is None or elapsed < self.best_time:
+            self.best_time = round(float(elapsed), 3)
             self._save_best_times()
+            print(f"🏆 New best time: {self._format_time(self.best_time)}")
 
-    def _reset_best_time_current_level(self):
-        key = str(self.current_level)
-        if key in self.best_times:
-            del self.best_times[key]
-            self._save_best_times()
-            print(f"⏱️ Best time for level {key} reset.")
-        else:
-            print("ℹ️ No best time to reset for this level.")
+    def _reset_best_time(self):
+        self.best_time = None
+        if os.path.exists(self.best_times_path):
+            try:
+                os.remove(self.best_times_path)
+            except OSError:
+                pass
+        print(f"⏱️ Best time reset.")
 
     def _draw_hud_meta(self):
         # Ekran boyutu ve metinler
         sw, sh = self.screen.get_size()
         bar_h = self._hud_bar_height()
-        # Merkez zamanlayıcı
-        now = self.level_end_time if self.level_end_time else pygame.time.get_ticks() / 1000.0
-        elapsed = now - self.level_start_time if self.level_start_time else 0.0
-        best = self._current_level_best()
-        best_text = self._format_time(best) if best is not None else "--:--.--"
+        # Merkez zamanlayıcı (TOTAL time)
+        now = self.total_end_time if self.total_end_time else pygame.time.get_ticks() / 1000.0
+        elapsed = now - self.total_start_time if self.total_start_time else 0.0
+        best_text = self._format_time(self.best_time) if self.best_time is not None else "--:--.--"
         now_text = self._format_time(elapsed)
         center_text = f"Best: {best_text} | Now: {now_text}"
         # Daha okunaklı açık renk
@@ -832,11 +828,11 @@ class GameManager:
         text_rect = go_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50))
         self.screen.blit(go_text, text_rect)
         
-        hint_text = self.font_medium.render("Press R to restart", True, UI_TEXT_COLOR)
+        hint_text = self.font_medium.render("Press R to restart (keep best time)", True, UI_TEXT_COLOR)
         hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 50))
         self.screen.blit(hint_text, hint_rect)
 
-        reset_text = self.font_medium.render("Press B to reset best time", True, UI_TEXT_COLOR)
+        reset_text = self.font_medium.render("Press B to reset best time & restart", True, UI_TEXT_COLOR)
         reset_rect = reset_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 90))
         self.screen.blit(reset_text, reset_rect)
     
@@ -849,19 +845,26 @@ class GameManager:
     
     def level_complete(self):
         """Level tamamlandı"""
-        self.state = STATE_WIN
-        print(f"🎉 Level {self.current_level} completed!")
-        # Süreyi kaydet (en iyi - en hızlı)
-        self.level_end_time = pygame.time.get_ticks() / 1000.0
-        elapsed = self.level_end_time - self.level_start_time if self.level_start_time else 0.0
-        self._update_best_time_if_better(elapsed)
-        self.reset_player_progress()
+        # Son level mi kontrol et
+        if self.current_level >= LevelData.get_total_levels():
+            # Oyun tamamlandı
+            self.state = STATE_WIN
+            print(f"🎉 All levels completed!")
+            # Toplam süreyi kaydet
+            self.total_end_time = pygame.time.get_ticks() / 1000.0
+            elapsed = self.total_end_time - self.total_start_time if self.total_start_time else 0.0
+            self._update_best_time_if_better(elapsed)
+            self.reset_player_progress()
+        else:
+            # Sonraki level'e geç (timer devam eder)
+            print(f"✅ Level {self.current_level} complete! Moving to next level...")
+            self.next_level()
     
     def game_over(self):
         """Game Over"""
         self.state = STATE_GAME_OVER
         print("💀 Game Over!")
-        self.level_end_time = pygame.time.get_ticks() / 1000.0
+        self.total_end_time = pygame.time.get_ticks() / 1000.0
         self.reset_player_progress()
     
     def reset_level(self):
@@ -891,8 +894,8 @@ class GameManager:
         # Yeni levele geçerken oyuncu hâlâ bir rotate üzerinde olabilir; tekrar tetiklenmeyi engelle
         self.on_rotate = True
         # Timer'i sıfırla (ilk draw frame'inde yeniden başlayacak)
-        self.level_start_time = 0.0
-        self.level_end_time = 0.0
+        self.total_start_time = 0.0
+        self.total_end_time = 0.0
         # Anahtarı şart sağlanmadıysa gizle
         self.key_spawned = False
         print("🔄 Level restarted!")
