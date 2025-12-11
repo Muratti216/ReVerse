@@ -1,0 +1,45 @@
+name: Windows Build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || echo "No requirements.txt"
+          pip install pygame pyinstaller
+
+      - name: Build exe with PyInstaller
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Use PyInstaller to create onefile windowed exe
+          pyinstaller --noconfirm --onefile --windowed \
+            --name ReVerse \
+            --icon Assets/Icons/ReVerse.ico \
+            --add-data "Assets;Assets" \
+            --add-data "Levels;Levels" \
+            --add-data "Scenes;Scenes" \
+            --add-data "Scripts;Scripts" \
+            main.py
+          if (!(Test-Path dist\ReVerse.exe)) { throw 'Build failed: exe missing' }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReVerse-Windows
+          path: dist/ReVerse.exe
