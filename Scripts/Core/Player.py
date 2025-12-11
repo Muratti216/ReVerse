@@ -59,10 +59,14 @@ class Player:
         self.has_key = False
         self.require_key = True
         self.is_alive = True
+        # Seviye bazlı ayarlar
+        self.push_damage_enabled = True  # İtme okuna basmak can götürsün mü?
+        self.current_level = 1  # Mevcut level numarası (sprite ve ok kontrolleri için)
         
         # Input throttle (tuş basılı tutmayı engelle)
         self.last_input_time = 0
         self.input_cooldown = 0.15  # saniye
+        self.space_held = False  # SPACE edge-detection için
 
     def set_sprite(self, relative_path: str):
         """Oyuncu sprite'ını değiştir (Assets/Sprites altındaki dosya)."""
@@ -156,14 +160,18 @@ class Player:
         if current_time - self.last_input_time < self.input_cooldown:
             return
         
-        # SPACE tuşu -> Zıplama seçimi (toggle)
-        if keys[pygame.K_SPACE]:
+        # SPACE tuşu -> Zıplama seçimi (toggle) - edge detection
+        if keys[pygame.K_SPACE] and not self.space_held:
+            self.space_held = True
             self.will_jump = not self.will_jump
             self.turn_state = "jump_selected" if self.will_jump else "waiting"
             self.last_input_time = current_time
             status = "JUMP mode ON" if self.will_jump else "JUMP mode OFF"
             print(f"⚡ {status}")
             return
+        elif not keys[pygame.K_SPACE]:
+            # Tuş bırakıldığında tekrar toggle'a izin ver
+            self.space_held = False
         
         # Yön tuşları -> Hareket yönü seç ve hareketi başlat
         dx, dy = 0, 0
@@ -406,6 +414,7 @@ class Player:
         self.stars_collected = 0
         self.has_key = False
         self.is_alive = True
+        self.push_damage_enabled = True
         if self.resource_manager:
             self.resource_manager.reset()
         print("🔄 Player reset!")

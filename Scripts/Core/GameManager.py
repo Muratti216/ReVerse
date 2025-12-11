@@ -228,6 +228,16 @@ class GameManager:
             # Yıldız şartı zaten sağlanmışsa anahtarı hemen göster
             self._maybe_spawn_key_if_ready()
 
+            # Level bilgisini player'a aktarılabilir yap
+            try:
+                self.player.current_level = level_number
+            except Exception:
+                pass
+            # Level 1'de push ok hasarı kapalı (eski davranış, artık koordinat kontrolü kullanılıyor)
+            try:
+                self.player.push_damage_enabled = True  # Varsayılan aktif; sadece (2,1) hariç
+            except Exception:
+                pass
             print(f"✅ Level {level_number} loaded successfully!")
             return True
         
@@ -286,6 +296,7 @@ class GameManager:
                 elif event.key == pygame.K_TAB:
                     self.help_enabled = not self.help_enabled
                     print(f"❓ Help overlay: {'ON' if self.help_enabled else 'OFF'}")
+
 
                 # B - Reset best time (only on win/game over screens)
                 elif event.key == pygame.K_b:
@@ -855,8 +866,25 @@ class GameManager:
     
     def reset_level(self):
         """Level'i resetle"""
+        # Her zaman Level 1'den yeniden başlat
+        try:
+            self.current_level = 1
+        except Exception:
+            pass
+        # Sistemleri sıfırla
         self.level_loader.reset_level()
         self.rotation_manager.reset()
+        # Oyuncu ilerlemesini ve kaynaklarını sıfırla
+        try:
+            self.reset_player_progress()
+            if hasattr(self, 'player') and self.player and self.player.resource_manager:
+                self.player.resource_manager.reset()
+            if hasattr(self, 'player') and self.player:
+                self.player.restore_default_sprite()
+        except Exception:
+            pass
+        # Level 1'i yükle
+        self.load_level(1)
         self.state = STATE_PLAYING
         # Seviye yüklenince kısa bir cooldown ver (spawn'da anında tetiklemeyi engelle)
         self.rotate_cooldown = 0.5
@@ -866,8 +894,6 @@ class GameManager:
         self.level_start_time = 0.0
         self.level_end_time = 0.0
         # Anahtarı şart sağlanmadıysa gizle
-        if hasattr(self, 'collectibles'):
-            self.collectibles = [c for c in self.collectibles if c.__class__.__name__ != 'Key']
         self.key_spawned = False
         print("🔄 Level restarted!")
     

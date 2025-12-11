@@ -200,10 +200,19 @@ class PushTriangle(Tile):
         """Oyuncuyu ok ucunun baktığı yönün 1 önüne anında yerleştir; temas can götürür."""
         if self.direction is None:
             return
-        # İtme okuna basmak 1 can düşürür
-        alive = player.resource_manager.take_hit("Push arrow")
-        if not alive:
-            return
+        # Tile grid koordinatı
+        tile_grid_x = self.x // GRID_SIZE
+        tile_grid_y = self.y // GRID_SIZE
+        # Level 1, Row B, Column 2 (2,1) ok'u SADECE hasarsız
+        # Level 2 ve diğer tüm oklar daima hasar verir
+        current_level = getattr(player, 'current_level', 1)
+        is_level1_safe_arrow = (current_level == 1 and tile_grid_x == 2 and tile_grid_y == 1)
+        
+        # İtme okuna basmak 1 can düşürür (sadece Level 1 row B hariç)
+        if not is_level1_safe_arrow and getattr(player, 'push_damage_enabled', True):
+            alive = player.resource_manager.take_hit("Push arrow")
+            if not alive:
+                return
         dir_map = {
             DIR_RIGHT: (1, 0),
             DIR_LEFT: (-1, 0),
