@@ -61,3 +61,71 @@ Notlar: `--onedir` tercih edin; `--add-data` Windows’ta `kaynak;hedef`; ikon y
 - `config.py`: Ayarlar
 
 İyi oyunlar! 🎮
+
+-----------------------------------------------------------
+
+# ReVerse | Puzzle Platformer
+
+A small grid-based puzzle-action game that cycles between two levels, with shared health and jump attempts. Objective: Collect the stars, grab the key, and reach the door.
+
+## How to play
+
+- Health and jump attempts are shared: 3 main health points × 3 jump attempts per life. In jump mode, one attempt is lost with every move; if attempts reach 0, 1 health point is lost and attempts are refreshed.
+- All obstacles cost 1 health point (black block). If health remains, jump attempts are refreshed; if health reaches 0, it’s Game Over.
+- Collect stars → a key spawns (the key is invisible in Level 1, but appears in Level 2). The door only opens with enough stars and the key.
+- Timer at the top: Best / Now. Status on the right: Stars, Key, objective (collect / get key / exit).
+- Health and jump attempts are carried over when switching between Levels 1 and 2.
+
+## Controls
+
+- A / Left Arrow: Left
+- D / Right Arrow: Right
+- SPACE: Toggle jump mode, then jump using the arrow keys
+- R: Reset level
+- N: Debug panel
+- TAB: Help panel
+- G: God Mode (debug)
+- F10: Maximise/minimise window
+- F11: Full screen
+- ESC: Exit
+
+## Building (Windows)
+
+```pwsh
+py -m PyInstaller ^
+  --name ReVerse ^
+  --icon "Assets/Sprites/Avatar.ico" ^
+  --add-data "Assets;Assets" ^
+  --add-data "Levels;Levels" ^
+  --add-data "Scenes;Scenes" ^
+  --add-data "Scripts;Scripts" ^
+  --add-data "README.md;." ^
+  --noconfirm ^
+  --onedir ^
+  --clean ^
+  --distpath "Build" ^
+  main.py
+```
+
+To run:
+
+```pwsh
+Start-Process "Build\ReVerse\ReVerse.exe"
+```
+
+Notes: Use `--onedir`; on Windows, `--add-data` is `source;target`; if there is no icon, you can omit `--icon`.
+
+## File guide
+
+- `main.py`: Introduction, splash/quick mode
+- `Scripts/Core/GameManager.py`: Loop, state, HUD, timer
+- `Levels/LevelData.py`, `Levels/LevelLoader.py`: Maps
+- `Scripts/Entities/Tile.py`: Tiles (safe, damage, push arrow)
+- `Scripts/Entities/Collectible.py`: Star, key, door, rotation
+- `Scripts/Systems/ResourceManager.py`: Health + jump credits (shared pool)
+- `Scripts/Systems/RotationManager.py`: World/level rotation
+- `config.py`: Settings
+
+Enjoy the game! 🎮
+
+
